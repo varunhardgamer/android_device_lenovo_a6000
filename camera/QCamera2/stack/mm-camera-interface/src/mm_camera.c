@@ -48,8 +48,6 @@
 #define GET_PARM_BIT32(parm, parm_arr) \
     ((parm_arr[parm/32]>>(parm%32))& 0x1)
 
-#define WAIT_EVENT_TIMEOUT 5 //5seconds
-
 /* internal function declare */
 int32_t mm_camera_evt_sub(mm_camera_obj_t * my_obj,
                           uint8_t reg_flag);
@@ -262,7 +260,7 @@ int32_t mm_camera_open(mm_camera_obj_t *my_obj)
         rc= -1;
         goto on_error;
     }
-    strlcpy(t_devname, temp_dev_name, sizeof(t_devname));
+    strcpy(t_devname, temp_dev_name);
     snprintf(dev_name, sizeof(dev_name), "/dev/%s",t_devname );
     sscanf(dev_name, "/dev/video%d", &cam_idx);
     CDBG_ERROR("%s: dev name = %s, cam_idx = %d", __func__, dev_name, cam_idx);
@@ -1642,7 +1640,7 @@ void mm_camera_util_wait_for_event(mm_camera_obj_t *my_obj,
     pthread_mutex_lock(&my_obj->evt_lock);
     while (!(my_obj->evt_rcvd.server_event_type & evt_mask)) {
         clock_gettime(CLOCK_REALTIME, &ts);
-        ts.tv_sec += WAIT_EVENT_TIMEOUT;
+        ts.tv_sec++;
         rc = pthread_cond_timedwait(&my_obj->evt_cond, &my_obj->evt_lock, &ts);
         if (rc == ETIMEDOUT) {
             ALOGE("%s pthread_cond_timedwait success\n", __func__);

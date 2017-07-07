@@ -555,11 +555,7 @@ public:
     static const char CDS_MODE_AUTO[];
 
     static const char KEY_SELECTED_AUTO_SCENE[];
-#ifdef TARGET_TS_MAKEUP
-    static const char KEY_TS_MAKEUP[];
-    static const char KEY_TS_MAKEUP_WHITEN[];
-    static const char KEY_TS_MAKEUP_CLEAN[];
-#endif
+
     enum {
         CAMERA_ORIENTATION_UNKNOWN = 0,
         CAMERA_ORIENTATION_PORTRAIT = 1,
@@ -870,7 +866,7 @@ private:
     int32_t setFaceRecognition(const char *faceRecog, uint32_t maxFaces);
     int32_t setTintlessValue(const char *tintStr);
     int32_t setCacheVideoBuffers(const char *cacheVideoBufStr);
-    int32_t setLowPowerMode(const char * mode);
+    int32_t setLowPowerMode(bool value);
 
     int32_t parseGains(const char *gainStr, double &r_gain,
                        double &g_gain, double &b_gain);

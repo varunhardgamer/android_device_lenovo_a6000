@@ -47,10 +47,7 @@
 #include "QCameraThermalAdapter.h"
 #include "QCameraMem.h"
 #include "cam_intf.h"
-#ifdef TARGET_TS_MAKEUP
-#include "ts_makeup_engine.h"
-#include "ts_detectface_engine.h"
-#endif
+
 extern "C" {
 #include <mm_camera_interface.h>
 #include <mm_jpeg_interface.h>
@@ -347,7 +344,6 @@ private:
 
     bool needDebugFps();
     bool isRegularCapture();
-    bool needAdjustFPS();
     bool isCACEnabled();
     bool isPreviewRestartEnabled();
     bool is4k2kResolution(cam_dimension_t* resolution);
@@ -526,8 +522,6 @@ private:
     uint32_t          mCameraId;
     mm_camera_vtbl_t *mCameraHandle;
     bool mCameraOpened;
-    // This flag will indicate whether camera is opened or not
-    static unsigned int mCameraSessionActive;
 
     preview_stream_ops_t *mPreviewWindow;
     QCameraParameters mParameters;
@@ -654,17 +648,6 @@ private:
     cam_frame_idx_range_t mPreviewFrameSkipIdxRange;
     int32_t mNumPreviewFaces;
     bool mAdvancedCaptureConfigured;
-    bool mFPSReconfigure;
-   //ts add for makeup
-#ifdef TARGET_TS_MAKEUP
-    TSRect mFaceRect;
-    unsigned char *mMakeUpBuf;
-    int yuvDataRelocate(uint8_t* pSrcBuffer,uint8_t* pDstBuffer,cam_frame_len_offset_t offset);
-    int yuvDataRecover(uint8_t* pSrcBuffer,uint8_t* pDstBuffer,cam_frame_len_offset_t offset);
-    bool TsMakeupProcess_Preview(mm_camera_buf_def_t *pFrame,QCameraStream * pStream);
-    bool TsMakeupProcess_Snapshot(mm_camera_buf_def_t *pFrame,QCameraStream * pStream);
-    bool TsMakeupProcess(mm_camera_buf_def_t *frame,QCameraStream * stream,unsigned char *makeupOutBuf,TSRect& faceRect);
-#endif
 };
 
 }; // namespace qcamera

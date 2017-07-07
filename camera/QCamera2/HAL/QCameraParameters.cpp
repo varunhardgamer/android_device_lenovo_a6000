@@ -404,11 +404,6 @@ const char QCameraParameters::KEY_QC_WB_CCT_MODE[] = "color-temperature";
 const char QCameraParameters::KEY_QC_WB_GAIN_MODE[] = "rbgb-gains";
 
 
-#ifdef TARGET_TS_MAKEUP
-const char QCameraParameters::KEY_TS_MAKEUP[] = "tsmakeup";
-const char QCameraParameters::KEY_TS_MAKEUP_WHITEN[] = "tsmakeup_whiten";
-const char QCameraParameters::KEY_TS_MAKEUP_CLEAN[] = "tsmakeup_clean";
-#endif
 static const char* portrait = "portrait";
 static const char* landscape = "landscape";
 
@@ -804,7 +799,7 @@ QCameraParameters::QCameraParameters()
     // For thermal mode, it should be set as system property
     // because system property applies to all applications, while
     // parameters only apply to specific app.
-    property_get("persist.camera.thermal.mode", value, "fps");
+    property_get("persist.camera.thermal.mode", value, "frameskip");
     if (!strcmp(value, "frameskip")) {
         m_ThermalMode = QCAMERA_THERMAL_ADJUST_FRAMESKIP;
     } else {
@@ -3692,7 +3687,7 @@ int32_t QCameraParameters::setNumOfSnapshot()
                         ALOGE("%s: No memory for prop", __func__);
                         return NO_MEMORY;
                     }
-                    strlcpy(prop, str_val, strlen(str_val) + 1);
+                    strcpy(prop, str_val);
                     char *saveptr = NULL;
                     char *token = strtok_r(prop, ",", &saveptr);
                     while (token != NULL) {
@@ -3767,15 +3762,31 @@ int32_t QCameraParameters::setRecordingHint(const QCameraParameters& params)
  *==========================================================================*/
 int32_t QCameraParameters::setLowPowerMode(const QCameraParameters& params)
 {
-    const char *str_val = params.get(KEY_QC_LOW_POWER_MODE);
+    int32_t ret = NO_ERROR;
+    const char *str_val  = params.get(KEY_QC_LOW_POWER_MODE);
     const char *prev_str = get(KEY_QC_LOW_POWER_MODE);
+    int8_t value = -1;
+    char prop[PROPERTY_VALUE_MAX];
 
-    if(str_val != NULL) {
+    memset(prop, 0, sizeof(prop));
+    property_get("persist.camera.lowpower.enable", prop, "");
+
+    if (strlen(prop) > 0) {
+        value = atoi(prop);
+    } else if(str_val != NULL) {
         if (prev_str == NULL || strcmp(str_val, prev_str) != 0) {
-            return setLowPowerMode(str_val);
+            value = atoi(str_val);
         }
     }
-    return NO_ERROR;
+
+    if (value != -1) {
+        //map value to boolean for enabling/disabling low power
+        value = (value > 0)? true : false;
+        if ( m_bLowPowerMode != value ) {
+            ret = setLowPowerMode(value);
+        }
+    }
+    return ret;
 }
 
 /*===========================================================================
@@ -4255,20 +4266,6 @@ int32_t QCameraParameters::updateParameters(QCameraParameters& params,
 
     if ((rc = updateFlash(false)))                      final_rc = rc;
     if ((rc = setSensorDebugMask()))                    final_rc = rc;
-#ifdef TARGET_TS_MAKEUP
-    if (params.get(KEY_TS_MAKEUP) != NULL) {
-        set(KEY_TS_MAKEUP,params.get(KEY_TS_MAKEUP));
-        final_rc = rc;
-    }
-    if (params.get(KEY_TS_MAKEUP_WHITEN) != NULL) {
-        set(KEY_TS_MAKEUP_WHITEN,params.get(KEY_TS_MAKEUP_WHITEN));
-        final_rc = rc;
-    }
-    if (params.get(KEY_TS_MAKEUP_CLEAN) != NULL) {
-        set(KEY_TS_MAKEUP_CLEAN,params.get(KEY_TS_MAKEUP_CLEAN));
-        final_rc = rc;
-    }
-#endif
 UPDATE_PARAM_DONE:
     needRestart = m_bNeedRestart;
     return final_rc;
@@ -5027,9 +5024,7 @@ int32_t QCameraParameters::initDefaultParameters()
     CDBG_HIGH("%s: totalram = %ld, freeram = %ld ", __func__, info.totalram,
         info.freeram);
     if (info.totalram > TOTAL_RAM_SIZE_512MB) {
-        /* Report as unsupported on Rendang. It's buggy and provides almost no
-           benefit. */
-        set(KEY_QC_ZSL_HDR_SUPPORTED, VALUE_FALSE);
+        set(KEY_QC_ZSL_HDR_SUPPORTED, VALUE_TRUE);
     } else {
         m_bIsLowMemoryDevice = true;
         set(KEY_QC_ZSL_HDR_SUPPORTED, VALUE_FALSE);
@@ -5046,7 +5041,7 @@ int32_t QCameraParameters::initDefaultParameters()
     } else {
         set(KEY_QC_LOW_POWER_MODE_SUPPORTED, VALUE_FALSE);
     }
-    setLowPowerMode(VALUE_DISABLE);
+    setLowPowerMode(false);
 
     int32_t rc = commitParameters();
     if (rc == NO_ERROR) {
@@ -6560,7 +6555,7 @@ int32_t QCameraParameters::parseGains(const char *gainStr, double &r_gain,
         ALOGE("%s: No memory for gains", __func__);
         return NO_MEMORY;
     }
-    strlcpy(gains, gainStr, strlen(gainStr) + 1);
+    strcpy(gains, gainStr);
     char *token = strtok_r(gains, ",", &saveptr);
     if (NULL == token) {
         ALOGE("%s:%d: strtok_r fails to find delimit", __func__,__LINE__);
@@ -8416,38 +8411,22 @@ int QCameraParameters::getMinPPBufs()
  * DESCRIPTION: enable/disable low power mode for camcorder
  *
  * PARAMETERS :
- *   @mode   : enable/disable string
+ *   @value   : true/false
  *
  * RETURN     : int32_t type of status
  *              NO_ERROR  -- success
  *              none-zero failure code
  *==========================================================================*/
-int32_t QCameraParameters::setLowPowerMode(const char* mode)
+int32_t QCameraParameters::setLowPowerMode(bool value)
 {
-    if (mode != NULL) {
-        int8_t value = lookupAttr(ENABLE_DISABLE_MODES_MAP,
-                PARAM_MAP_SIZE(ENABLE_DISABLE_MODES_MAP), mode);
-
-        char prop[PROPERTY_VALUE_MAX];
-        memset(prop, 0, sizeof(prop));
-        property_get("persist.camera.lowpower.enable", prop, "");
-
-        if (strlen(prop) > 0) {
-            value = atoi(prop);
-        }
-        if (value != NAME_NOT_FOUND) {
-            CDBG_HIGH("%s: Setting %s Power mode", __func__, value ? "low":"normal");
-            m_bLowPowerMode = value;
-            set(KEY_QC_LOW_POWER_MODE, mode);
-            m_bNeedRestart = true;
-            return AddSetParmEntryToBatch(m_pParamBuf,
-                                          CAM_INTF_PARM_LOW_POWER_ENABLE,
-                                          sizeof(value),
-                                          &value);
-        }
-    }
-    ALOGE("Invalid power mode value: %s", (mode == NULL) ? "NULL" : mode);
-    return BAD_VALUE;
+    CDBG_HIGH("%s: Setting %s Power mode", __func__, value ? "low":"normal");
+    m_bLowPowerMode = value;
+    set(KEY_QC_LOW_POWER_MODE, value);
+    m_bNeedRestart = true;
+    return AddSetParmEntryToBatch(m_pParamBuf,
+                                  CAM_INTF_PARM_LOW_POWER_ENABLE,
+                                  sizeof(value),
+                                  &value);
 }
 
 /*===========================================================================
@@ -8556,7 +8535,7 @@ uint8_t QCameraParameters::getBurstCountForAdvancedCapture()
               ALOGE("%s: No memory for prop", __func__);
               return NO_MEMORY;
           }
-          strlcpy(prop, str_val, strlen(str_val) + 1);
+          strcpy(prop, str_val);
           char *saveptr = NULL;
           char *token = strtok_r(prop, ",", &saveptr);
           while (token != NULL) {
